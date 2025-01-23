@@ -1,66 +1,65 @@
 const express = require('express');
+const multer = require('multer');
 const bodyParser = require('body-parser');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const path = require('path');
 
 const app = express();
 const PORT = 3000;
-const SECRET_KEY = 'your_secret_key';
 
-// Mock database
-const users = [];
+const users = []; // Temporary in-memory user storage (use a database in production)
+const posts = []; // Temporary in-memory post storage
 
-// Middleware
+// Middleware for parsing JSON and serving static files
 app.use(bodyParser.json());
-app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Routes
-// Register
+// Multer setup for file uploads
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + path.extname(file.originalname));
+    },
+});
+const upload = multer({ storage });
+
+// Route: Register
 app.post('/register', (req, res) => {
     const { username, email, password } = req.body;
-
-    // Check if email is already registered
-    if (users.find(user => user.email === email)) {
-        return res.status(400).json({ error: 'Email already exists.' });
+    if (users.find((user) => user.email === email)) {
+        return res.status(400).json({ error: 'Email already registered.' });
     }
-
-    // Hash password
-    const hashedPassword = bcrypt.hashSync(password, 10);
-
-    // Store user
-    users.push({ username, email, password: hashedPassword });
-    res.status(201).json({ message: 'User registered successfully!' });
+    users.push({ username, email, password });
+    res.json({ message: 'Registration successful!' });
 });
 
-// Login
+// Route: Login
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
-
-    const user = users.find(user => user.email === email);
+    const user = users.find((u) => u.email === email && u.password === password);
     if (!user) {
-        return res.status(400).json({ error: 'Invalid email or password.' });
+        return res.status(401).json({ error: 'Invalid credentials.' });
     }
-
-    // Verify password
-    const isPasswordValid = bcrypt.compareSync(password, user.password);
-    if (!isPasswordValid) {
-        return res.status(400).json({ error: 'Invalid email or password.' });
-    }
-
-    // Generate token
-    const token = jwt.sign({ username: user.username }, SECRET_KEY, { expiresIn: '1h' });
-    res.json({ username: user.username, token });
+    res.json({ message: 'Login successful!', username: user.username });
 });
 
-// Catch-all route for handling 404 errors
-app.use((req, res, next) => {
-    res.status(404).sendFile(path.join(__dirname, 'views', '404.html'));
+// Route: Upload Media
+app.post('/upload', upload.single('media'), (req, res) => {
+    const { title } = req.body;
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+    }
+    posts.push({ title, filePath: `/uploads/${req.file.filename}` });
+    res.json({ message: 'Media uploaded successfully!', post: { title, filePath: `/uploads/${req.file.filename}` } });
 });
 
-// Start server
+// Catch-all route for 404 errors
+app.use((req, res) => {
+    res.status(404).send('Page not found');
+});
+
+// Start the server
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}/`);
+    console.log(`Server running on http://localhost:${PORT}`);
 });
