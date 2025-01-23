@@ -1,73 +1,58 @@
 const express = require('express');
-const path = require('path');
-const multer = require('multer');
 const bodyParser = require('body-parser');
+const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const path = require('path');
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
+const SECRET_KEY = 'your_secret_key';
 
-// Mock Database for posts, likes, and comments
-let posts = [];
-let users = []; // Mock user data (you can use real authentication for a live app)
+// Mock database
+const users = [];
 
-// Middleware for parsing JSON data
+// Middleware
 app.use(bodyParser.json());
+app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Multer setup for file uploads (images and videos)
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/');
-    },
-    filename: function (req, file, cb) {
-        cb(null, Date.now() + path.extname(file.originalname)); // Store with timestamp
+// Routes
+// Register
+app.post('/register', (req, res) => {
+    const { username, email, password } = req.body;
+
+    // Check if email is already registered
+    if (users.find(user => user.email === email)) {
+        return res.status(400).json({ error: 'Email already exists.' });
     }
+
+    // Hash password
+    const hashedPassword = bcrypt.hashSync(password, 10);
+
+    // Store user
+    users.push({ username, email, password: hashedPassword });
+    res.status(201).json({ message: 'User registered successfully!' });
 });
 
-const upload = multer({ storage: storage });
+// Login
+app.post('/login', (req, res) => {
+    const { email, password } = req.body;
 
-// Serve the upload folder
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Route to post an image/video with a title
-app.post('/post', upload.single('media'), (req, res) => {
-    const { title } = req.body;
-    const file = req.file;
-    if (!file || !title) {
-        return res.status(400).json({ error: 'Title and media file are required' });
+    const user = users.find(user => user.email === email);
+    if (!user) {
+        return res.status(400).json({ error: 'Invalid email or password.' });
     }
 
-    const newPost = {
-        id: Date.now(),
-        title,
-        media: file.path,
-        likes: 0,
-        comments: [],
-    };
-    posts.push(newPost);
-    res.status(201).json(newPost);
-});
-
-// Route to like a post
-app.post('/like/:postId', (req, res) => {
-    const { postId } = req.params;
-    const post = posts.find(p => p.id == postId);
-    if (!post) {
-        return res.status(404).json({ error: 'Post not found' });
+    // Verify password
+    const isPasswordValid = bcrypt.compareSync(password, user.password);
+    if (!isPasswordValid) {
+        return res.status(400).json({ error: 'Invalid email or password.' });
     }
-    post.likes += 1;
-    res.status(200).json(post);
-});
 
-// Route to comment on a post
-app.post('/comment/:postId', (req, res) => {
-    const { postId } = req.params;
-    const { comment } = req.body;
-    const post = posts.find(p => p.id == postId);
-    if (!post) {
-        return res.status(404).json({ error: 'Post not found' });
-    }
-    post.comments.push(comment);
-    res.status(200).json(post);
+    // Generate token
+    const token = jwt.sign({ username: user.username }, SECRET_KEY, { expiresIn: '1h' });
+    res.json({ username: user.username, token });
 });
 
 // Catch-all route for handling 404 errors
@@ -75,7 +60,7 @@ app.use((req, res, next) => {
     res.status(404).sendFile(path.join(__dirname, 'views', '404.html'));
 });
 
-// Start the server
+// Start server
 app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}/`);
+  console.log(`Server running at http://localhost:${PORT}/`);
 });
