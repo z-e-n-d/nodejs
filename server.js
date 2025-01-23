@@ -3,23 +3,21 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000; // Use dynamic port on Railway
+
 const SECRET_KEY = 'your_secret_key';
 
-// Mock database (use a real database in production)
+// Mock database
 const users = [];
 
 // Middleware
 app.use(bodyParser.json());
 app.use(cors());
 
-// Serve static HTML, CSS, and JS
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Register Route
+// Routes
+// Register
 app.post('/register', (req, res) => {
     const { username, email, password } = req.body;
 
@@ -31,12 +29,12 @@ app.post('/register', (req, res) => {
     // Hash password
     const hashedPassword = bcrypt.hashSync(password, 10);
 
-    // Store user in the mock database
+    // Store user
     users.push({ username, email, password: hashedPassword });
     res.status(201).json({ message: 'User registered successfully!' });
 });
 
-// Login Route
+// Login
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
 
@@ -56,7 +54,7 @@ app.post('/login', (req, res) => {
     res.json({ username: user.username, token });
 });
 
-// Start the server
+// Start server
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
 });
