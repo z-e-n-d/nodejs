@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const PORT = process.env.PORT || 5000; // Use dynamic port on Railway
 
-const SECRET_KEY = 'your_secret_key';
+const SECRET_KEY = '9a1d5f87bcd3z23d2fda9d82c01g4e21';
 
 // Mock database
 const users = [];
