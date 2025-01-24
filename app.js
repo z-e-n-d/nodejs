@@ -1,7 +1,8 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const multer = require('multer');
+const Busboy = require('busboy');
+const fs = require('fs');
 const path = require('path');
 
 const app = express();
@@ -41,23 +42,45 @@ app.post('/login', (req, res) => {
 });
 
 // Upload post endpoint (handles post submission with file upload)
-app.post('/upload-post', upload.single('file'), (req, res) => {
-    const { author, description } = req.body;
-    const file = req.file;
+app.post('/upload-post', (req, res) => {
+    const busboy = new Busboy({ headers: req.headers });
+    let author = '';
+    let description = '';
+    let fileData = null;
+    let fileName = '';
 
-    if (!author || !description || !file) {
-        return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    // Save the post to the mock database (or real database)
-    posts.push({
-        author,
-        description,
-        filePath: file.path,
-        fileName: file.originalname
+    busboy.on('field', (fieldname, val) => {
+        if (fieldname === 'author') {
+            author = val;
+        } else if (fieldname === 'description') {
+            description = val;
+        }
     });
 
-    res.status(200).json({ success: true, message: 'Post uploaded successfully!' });
+    busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+        fileName = filename;
+        const saveTo = path.join(__dirname, 'uploads', filename);
+        file.pipe(fs.createWriteStream(saveTo));
+        fileData = { mimetype, saveTo };
+    });
+
+    busboy.on('finish', () => {
+        if (!author || !description || !fileData) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        // Save the post to the mock database (or real database)
+        posts.push({
+            author,
+            description,
+            fileName,
+            fileData
+        });
+
+        res.status(200).json({ success: true, message: 'Post uploaded successfully!' });
+    });
+
+    req.pipe(busboy);
 });
 
 // Keep server awake (ping endpoint)
