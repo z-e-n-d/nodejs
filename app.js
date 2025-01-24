@@ -1,6 +1,8 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
 
 const app = express();
 const port = 5000;
@@ -9,8 +11,21 @@ const port = 5000;
 app.use(bodyParser.json());
 app.use(cors());
 
-// Mock database
+// Multer setup for file storage
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/'); // Files will be saved in the "uploads" folder
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + '-' + file.originalname); // Unique filename
+    }
+});
+
+const upload = multer({ storage: storage });
+
+// Mock database for users and posts
 const users = [];
+const posts = [];
 
 // Register endpoint
 app.post('/register', (req, res) => {
@@ -35,6 +50,26 @@ app.post('/login', (req, res) => {
     }
 
     res.status(200).json({ username: user.username });
+});
+
+// Upload post endpoint (handles post submission with file upload)
+app.post('/upload-post', upload.single('file'), (req, res) => {
+    const { author, description } = req.body;
+    const file = req.file;
+
+    if (!author || !description || !file) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Save the post to the mock database (or real database)
+    posts.push({
+        author,
+        description,
+        filePath: file.path,
+        fileName: file.originalname
+    });
+
+    res.status(200).json({ success: true, message: 'Post uploaded successfully!' });
 });
 
 // Keep server awake (ping endpoint)
