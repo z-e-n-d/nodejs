@@ -1,9 +1,8 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const Busboy = require('busboy');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const port = 5000;
@@ -43,44 +42,42 @@ app.post('/login', (req, res) => {
 
 // Upload post endpoint (handles post submission with file upload)
 app.post('/upload-post', (req, res) => {
-    const busboy = new Busboy({ headers: req.headers });
-    let author = '';
-    let description = '';
-    let fileData = null;
+    const { author, description } = req.body;  // assuming these come as JSON
     let fileName = '';
+    let fileData = null;
 
-    busboy.on('field', (fieldname, val) => {
-        if (fieldname === 'author') {
-            author = val;
-        } else if (fieldname === 'description') {
-            description = val;
-        }
-    });
+    if (!author || !description) {
+        return res.status(400).json({ error: 'Missing author or description.' });
+    }
 
-    busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
-        fileName = filename;
-        const saveTo = path.join(__dirname, 'uploads', filename);
-        file.pipe(fs.createWriteStream(saveTo));
-        fileData = { mimetype, saveTo };
-    });
+    // Here we assume that the file data comes in the request body as a field
+    // You could use FormData or a similar frontend method to send files as multipart/form-data
+    if (req.files && req.files.file) {
+        const file = req.files.file;
+        fileName = file.name;
+        const saveTo = path.join(__dirname, 'uploads', fileName);
 
-    busboy.on('finish', () => {
-        if (!author || !description || !fileData) {
-            return res.status(400).json({ error: 'Missing required fields' });
-        }
+        file.mv(saveTo, (err) => {
+            if (err) {
+                return res.status(500).json({ error: 'File upload failed.' });
+            }
 
-        // Save the post to the mock database (or real database)
-        posts.push({
-            author,
-            description,
-            fileName,
-            fileData
+            // Save post to the mock database
+            posts.push({
+                author,
+                description,
+                fileName,
+                fileData: {
+                    mimetype: file.mimetype,
+                    saveTo
+                }
+            });
+
+            res.status(200).json({ success: true, message: 'Post uploaded successfully!' });
         });
-
-        res.status(200).json({ success: true, message: 'Post uploaded successfully!' });
-    });
-
-    req.pipe(busboy);
+    } else {
+        return res.status(400).json({ error: 'No file uploaded.' });
+    }
 });
 
 // Keep server awake (ping endpoint)
