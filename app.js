@@ -13,6 +13,12 @@ app.use(bodyParser.json());
 app.use(cors());
 app.use(fileUpload());
 
+// Ensure the upload directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+}
+
 // Mock database for users, posts, and files
 const users = [];
 const posts = [];
@@ -44,7 +50,7 @@ app.post('/login', (req, res) => {
 
 // Upload post endpoint (handles post submission with file upload)
 app.post('/upload-post', (req, res) => {
-    const { author, description } = req.body;  // assuming these come as JSON
+    const { author, description } = req.body;
     let fileName = '';
     let fileData = null;
 
@@ -52,12 +58,13 @@ app.post('/upload-post', (req, res) => {
         return res.status(400).json({ error: 'Missing author or description.' });
     }
 
-    // Here we assume that the file data comes in the request body as a field
+    // Check if file is provided
     if (req.files && req.files.file) {
         const file = req.files.file;
         fileName = file.name;
-        const saveTo = path.join(__dirname, 'uploads', fileName);
+        const saveTo = path.join(uploadDir, fileName);
 
+        // Save the file to the server
         file.mv(saveTo, (err) => {
             if (err) {
                 return res.status(500).json({ error: 'File upload failed.' });
