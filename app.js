@@ -1,14 +1,17 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const multer = require('multer');
+const cors = require('cors'); // Added CORS
 const path = require('path');
+
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000; // Use Railway's dynamic port if available
 
 // Simulated database
 const users = [];
 
 // Middleware
+app.use(cors()); // Allow requests from other origins
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
