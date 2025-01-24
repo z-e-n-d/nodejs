@@ -3,10 +3,17 @@ const path = require('path');
 const bodyParser = require('body-parser');
 const multer = require('multer');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
 
 const app = express();
-const PORT = 3000;
-const SECRET_KEY = 'your_secret_key';
+const PORT = process.env.PORT || 3000;
+const SECRET_KEY = 'a7f6df9c2e13b85f4a3ed980b23d6789'; // Replace with a secure key
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
 
 // Mock database for users and posts
 const users = [];
@@ -31,7 +38,7 @@ function authenticateToken(req, res, next) {
 // Multer setup for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, 'uploads'));
+    cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
