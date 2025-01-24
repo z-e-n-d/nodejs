@@ -11,18 +11,6 @@ const port = 5000;
 app.use(bodyParser.json());
 app.use(cors());
 
-// Multer setup for file storage
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/'); // Files will be saved in the "uploads" folder
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname); // Unique filename
-    }
-});
-
-const upload = multer({ storage: storage });
-
 // Mock database for users and posts
 const users = [];
 const posts = [];
