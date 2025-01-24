@@ -1,83 +1,99 @@
 const express = require('express');
-const multer = require('multer');
-const bodyParser = require('body-parser');
 const path = require('path');
-const fs = require('fs');
+const bodyParser = require('body-parser');
+const multer = require('multer');
+const jwt = require('jsonwebtoken');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
+const SECRET_KEY = 'your_secret_key';
 
-// In-memory user database (for demo purposes only)
-const users = [{ email: 'test@example.com', password: 'password123' }];
+// Mock database for users and posts
+const users = [];
+const posts = [];
 
 // Middleware
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Configure Multer for file uploads
-const upload = multer({
-    dest: 'uploads/', // Destination folder for uploaded files
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB file size limit
+// JWT Authentication Middleware
+function authenticateToken(req, res, next) {
+  const token = req.headers['authorization'];
+  if (!token) return res.status(401).json({ error: 'Access denied. No token provided.' });
+
+  jwt.verify(token, SECRET_KEY, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid token.' });
+    req.user = user;
+    next();
+  });
+}
+
+// Multer setup for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, 'uploads'));
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+const upload = multer({ storage });
+
+// Routes
+// User Registration
+app.post('/register', (req, res) => {
+  const { username, email, password } = req.body;
+
+  if (users.find(user => user.email === email)) {
+    return res.status(400).json({ error: 'Email already exists.' });
+  }
+
+  users.push({ username, email, password });
+  res.status(201).json({ message: 'User registered successfully!' });
 });
 
-// Serve static HTML files
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'views', 'index.html'));
-});
-
-app.get('/upload', (req, res) => {
-    res.sendFile(path.join(__dirname, 'views', 'upload.html'));
-});
-
-// Login route
+// User Login
 app.post('/login', (req, res) => {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
-    const user = users.find(
-        (u) => u.email === email && u.password === password
-    );
+  const user = users.find(user => user.email === email && user.password === password);
+  if (!user) {
+    return res.status(400).json({ error: 'Invalid email or password.' });
+  }
 
-    if (user) {
-        res.status(200).json({ message: 'Login successful!' });
-    } else {
-        res.status(401).json({ error: 'Invalid email or password.' });
-    }
+  const token = jwt.sign({ username: user.username, email: user.email }, SECRET_KEY, { expiresIn: '1h' });
+  res.json({ token });
 });
 
-// Upload route
-app.post('/upload', upload.single('file'), (req, res) => {
-    const { title } = req.body;
+// Post Upload
+app.post('/upload', authenticateToken, upload.single('file'), (req, res) => {
+  const { title } = req.body;
+  const file = req.file;
 
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded.' });
-    }
+  if (!file) {
+    return res.status(400).json({ error: 'No file uploaded.' });
+  }
 
-    if (!title) {
-        return res.status(400).json({ error: 'Title is required.' });
-    }
-
-    const filePath = path.join(__dirname, 'uploads', req.file.filename);
-
-    // File rename for better organization
-    const newFilePath = path.join(
-        __dirname,
-        'uploads',
-        `${Date.now()}_${req.file.originalname}`
-    );
-
-    fs.rename(filePath, newFilePath, (err) => {
-        if (err) {
-            return res.status(500).json({ error: 'Error processing file.' });
-        }
-
-        res.status(200).json({
-            message: 'File uploaded successfully!',
-            filePath: newFilePath,
-        });
-    });
+  posts.push({ title, filePath: `/uploads/${file.filename}`, username: req.user.username });
+  res.status(201).json({ message: 'File uploaded successfully!' });
 });
 
-// Start server
+// Get Posts
+app.get('/posts', (req, res) => {
+  res.json(posts);
+});
+
+// Serve Upload Form (Optional)
+app.get('/upload.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'upload.html'));
+});
+
+// 404 Catch-all
+app.use((req, res) => {
+  res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
+});
+
+// Start Server
 app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}/`);
+  console.log(`Server running at http://localhost:${PORT}/`);
 });
