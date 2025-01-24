@@ -13,7 +13,7 @@ app.use(bodyParser.json());
 app.use(cors());
 app.use(fileUpload());
 
-// Mock database for users and posts
+// Mock database for users, posts, and files
 const users = [];
 const posts = [];
 
@@ -79,6 +79,11 @@ app.post('/upload-post', (req, res) => {
     } else {
         return res.status(400).json({ error: 'No file uploaded.' });
     }
+});
+
+// Get all posts for the feed
+app.get('/feed', (req, res) => {
+    res.status(200).json({ posts });
 });
 
 // Keep server awake (ping endpoint)
