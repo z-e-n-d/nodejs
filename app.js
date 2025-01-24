@@ -1,29 +1,43 @@
 const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = 5000;
 
-// Middleware for JSON parsing
-app.use(express.json());
+// Middleware
+app.use(bodyParser.json());
+app.use(cors());
 
-// Serve static files (if needed)
-app.use(express.static('public'));
+// Mock database
+const users = [];
 
-// Home route to check if the server is running
-app.get('/', (req, res) => {
-    res.send('Server is up and running!');
+// Register endpoint
+app.post('/register', (req, res) => {
+    const { username, email, password } = req.body;
+    const existingUser = users.find(user => user.email === email);
+
+    if (existingUser) {
+        return res.status(400).json({ error: 'User already exists!' });
+    }
+
+    users.push({ username, email, password });
+    res.status(201).json({ message: 'User registered successfully!' });
 });
 
-// API route to check server status
-app.get('/status', (req, res) => {
-    res.json({ status: 'Server is up and running!' });
+// Login endpoint
+app.post('/login', (req, res) => {
+    const { email, password } = req.body;
+    const user = users.find(user => user.email === email && user.password === password);
+
+    if (!user) {
+        return res.status(400).json({ error: 'Invalid credentials!' });
+    }
+
+    res.status(200).json({ username: user.username });
 });
 
-// 404 handler for unmatched routes
-app.use((req, res) => {
-    res.status(404).json({ error: 'Route not found' });
-});
-
-// Start the server
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+// Start server
+app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
 });
