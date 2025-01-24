@@ -1,104 +1,77 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
+const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const fileUpload = require('express-fileupload');
-
 const app = express();
-const port = 5000;
+const port = process.env.PORT || 3000;
 
-// Middleware
-app.use(bodyParser.json());
-app.use(cors());
-app.use(fileUpload());
+// Set up multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads'); // Save files to the 'uploads' folder
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname)); // Use a unique filename (timestamp)
+  }
+});
 
-// Ensure the upload directory exists
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-}
+const upload = multer({ storage: storage });
 
-// Mock database for users, posts, and files
-const users = [];
-const posts = [];
+// Middleware to serve static files from the 'uploads' folder
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Register endpoint
+// Use JSON parser middleware
+app.use(express.json());
+
+// Simulating users' posts for demonstration
+let posts = [];
+
+// Register Route
 app.post('/register', (req, res) => {
-    const { username, email, password } = req.body;
-    const existingUser = users.find(user => user.email === email);
-
-    if (existingUser) {
-        return res.status(400).json({ error: 'User already exists!' });
-    }
-
-    users.push({ username, email, password });
-    res.status(201).json({ message: 'User registered successfully!' });
+  const { username, email, password } = req.body;
+  // Registration logic goes here (save user to DB, etc.)
+  res.status(200).json({ message: 'Registration successful' });
 });
 
-// Login endpoint
+// Login Route
 app.post('/login', (req, res) => {
-    const { email, password } = req.body;
-    const user = users.find(user => user.email === email && user.password === password);
-
-    if (!user) {
-        return res.status(400).json({ error: 'Invalid credentials!' });
-    }
-
-    res.status(200).json({ username: user.username });
+  const { email, password } = req.body;
+  // Login logic goes here (check user credentials, etc.)
+  res.status(200).json({ username: 'exampleUser' }); // Return a mock username for now
 });
 
-// Upload post endpoint (handles post submission with file upload)
-app.post('/upload-post', (req, res) => {
-    const { author, description } = req.body;
-    let fileName = '';
-    let fileData = null;
+// Post creation (with file upload)
+app.post('/feed', upload.single('file'), (req, res) => {
+  const { description } = req.body;
+  const file = req.file;
+  
+  if (!file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
 
-    if (!author || !description) {
-        return res.status(400).json({ error: 'Missing author or description.' });
-    }
+  // Create a post object
+  const newPost = {
+    description,
+    fileName: file.filename, // Store the uploaded file's name
+  };
 
-    // Check if file is provided
-    if (req.files && req.files.file) {
-        const file = req.files.file;
-        fileName = file.name;
-        const saveTo = path.join(uploadDir, fileName);
+  // Save the post to the posts array (or to a database)
+  posts.push(newPost);
 
-        // Save the file to the server
-        file.mv(saveTo, (err) => {
-            if (err) {
-                return res.status(500).json({ error: 'File upload failed.' });
-            }
-
-            // Save post to the mock database
-            posts.push({
-                author,
-                description,
-                fileName,
-                fileData: {
-                    mimetype: file.mimetype,
-                    saveTo
-                }
-            });
-
-            res.status(200).json({ success: true, message: 'Post uploaded successfully!' });
-        });
-    } else {
-        return res.status(400).json({ error: 'No file uploaded.' });
-    }
+  res.status(200).json({ message: 'Post created successfully', post: newPost });
 });
 
-// Get all posts for the feed
+// Get all posts (for displaying in the feed)
 app.get('/feed', (req, res) => {
-    res.status(200).json({ posts });
+  res.status(200).json(posts);
 });
 
-// Keep server awake (ping endpoint)
-app.get('/ping', (req, res) => {
-    res.status(200).send('Server is awake');
-});
+// Static file server for the uploads folder
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Start server
+// Serve the frontend HTML
+app.use(express.static(path.join(__dirname, 'public'))); // Assuming your index.html is in the 'public' folder
+
 app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+  console.log(`Server running on port ${port}`);
 });
