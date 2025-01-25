@@ -16,7 +16,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Configure multer for file uploads
 const upload = multer({
     dest: 'uploads/', // Default destination folder
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB limit
+    limits: { fileSize: 1000 * 1024 * 1024 }, // 10 MB limit
 });
 
 // Temporary storage for posts and users
