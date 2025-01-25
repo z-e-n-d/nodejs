@@ -56,19 +56,35 @@ app.post("/login", (req, res) => {
   res.status(200).json({ message: "Logged in successfully", user });
 });
 
-// Create post route
-app.post("/posts", upload.single("file"), (req, res) => {
+// Create post route for '/create-posts'
+app.post("/create-posts", upload.single("file"), (req, res) => {
+  // Check if file is uploaded
   if (!req.file) {
     return res.status(400).json({ error: "File upload failed." });
   }
+
+  // Extract description and author from the request body
   const { description, author } = req.body;
+
+  // Build the file URL (assuming you're serving static files from the "uploads" folder)
   const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
-  const newPost = { id: Date.now(), description, author, fileUrl };
+
+  // Create a new post object
+  const newPost = {
+    id: Date.now(),  // Use timestamp as a unique ID for the post
+    description,
+    author,
+    fileUrl,  // URL of the uploaded file (image or video)
+  };
+
+  // Save the new post to the posts array
   posts.push(newPost);
+
+  // Return the new post as a response
   res.status(201).json(newPost);
 });
 
-// Get all posts
+// Get all posts route
 app.get("/posts", (req, res) => {
   res.json(posts);
 });
