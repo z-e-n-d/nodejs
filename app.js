@@ -1,84 +1,206 @@
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const app = express();
+let currentUserEmail = "";
+let currentUsername = "";
 
-const PORT = process.env.PORT || 3000;
+// Switch between forms
+function showSignup() {
+    document.getElementById('signup-form').style.display = 'block';
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('feed').style.display = 'none';
+}
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+function showLogin() {
+    document.getElementById('signup-form').style.display = 'none';
+    document.getElementById('login-form').style.display = 'block';
+    document.getElementById('feed').style.display = 'none';
+}
 
-let users = [];
-let posts = [];
+function showFeed(username, email) {
+    document.getElementById('signup-form').style.display = 'none';
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('feed').style.display = 'block';
+    document.getElementById('welcome-message').innerText = `Hello, ${username}!`;
+    currentUserEmail = email;
+    currentUsername = username;
+    loadPosts();
+}
 
-// Storage configuration for image uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/');
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    },
-});
+// Display a temporary message
+function showMessage(message, success = true) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.style.display = 'block';
+    messageDiv.style.backgroundColor = success ? '#d4edda' : '#f8d7da';
+    messageDiv.style.color = success ? '#155724' : '#721c24';
+    messageDiv.innerText = message;
+    setTimeout(() => {
+        messageDiv.style.display = 'none';
+    }, 3000);
+}
 
-const upload = multer({ storage });
+// Handle Sign-Up
+document.getElementById('signup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('signup-username').value;
+    const email = document.getElementById('signup-email').value;
+    const password = document.getElementById('signup-password').value;
 
-// Register route
-app.post('/register', (req, res) => {
-    const { username, email, password } = req.body;
-
-    if (users.find(user => user.email === email)) {
-        return res.status(400).json({ error: 'Email is already taken.' });
+    try {
+        const response = await fetch('https://nodejs-rwqk.onrender.com/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password }),
+        });
+        const result = await response.json();
+        if (response.ok) {
+            showMessage('Sign-up successful! Please log in.', true);
+            showLogin();
+        } else {
+            showMessage(result.error, false);
+        }
+    } catch (error) {
+        showMessage('Failed to connect to the server.', false);
     }
-
-    users.push({ username, email, password });
-    res.status(201).json({ message: 'User registered successfully.' });
 });
 
-// Login route
-app.post('/login', (req, res) => {
-    const { email, password } = req.body;
+// Handle Log-In
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
 
-    const user = users.find(user => user.email === email && user.password === password);
-    if (!user) {
-        return res.status(400).json({ error: 'Invalid credentials.' });
+    try {
+        const response = await fetch('https://nodejs-rwqk.onrender.com/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+        const result = await response.json();
+        if (response.ok) {
+            showMessage('Login successful!', true);
+            showFeed(result.username, email);
+        } else {
+            showMessage(result.error, false);
+        }
+    } catch (error) {
+        showMessage('Failed to connect to the server.', false);
     }
-
-    res.json({ username: user.username });
 });
 
-// Create Post route
-app.post('/posts', upload.single('file'), (req, res) => {
-    const { description, username } = req.body;
-    const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
-    const postId = posts.length + 1;
+// Post Popup
+function showPostPopup() {
+    document.getElementById('post-popup').style.display = 'block';
+    document.getElementById('overlay').style.display = 'block';
+}
 
-    posts.push({
-        id: postId,
-        description,
-        fileUrl,
-        username,
-    });
+function hidePostPopup() {
+    document.getElementById('post-popup').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+}
 
-    res.status(201).json({ message: 'Post created successfully.' });
-});
+// Submit Post
+async function submitPost() {
+    const description = document.getElementById('post-description').value;
+    const fileInput = document.getElementById('post-file');
+    const file = fileInput.files[0];
 
-// Get all posts route
-app.get('/posts', (req, res) => {
-    res.json(posts);
-});
+    const formData = new FormData();
+    formData.append('description', description);
+    formData.append('file', file);
 
-// Delete Post route
-app.delete('/posts/:id', (req, res) => {
-    const postId = parseInt(req.params.id);
-    posts = posts.filter(post => post.id !== postId);
+    try {
+        const response = await fetch('https://nodejs-rwqk.onrender.com/posts', {
+            method: 'POST',
+            body: formData,
+        });
+        if (response.ok) {
+            showMessage('Post created successfully!', true);
+            hidePostPopup();
+            loadPosts();
+        } else {
+            const result = await response.json();
+            showMessage(result.error, false);
+        }
+    } catch (error) {
+        showMessage('Failed to connect to the server.', false);
+    }
+}
 
-    res.status(200).json({ message: 'Post deleted successfully.' });
-});
+// Load Posts
+async function loadPosts() {
+    const postsContainer = document.getElementById('posts-container');
+    postsContainer.innerHTML = '';
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+    try {
+        const response = await fetch('https://nodejs-rwqk.onrender.com/posts');
+        const posts = await response.json();
+
+        posts.forEach(post => {
+            const postElement = document.createElement('div');
+            postElement.className = 'post';
+
+            const username = document.createElement('p');
+            username.className = 'post-username';
+            username.innerText = `Posted by: ${post.username || 'Anonymous'}`;
+            postElement.appendChild(username);
+
+            const description = document.createElement('p');
+            description.className = 'post-description';
+            description.innerText = post.description;
+            postElement.appendChild(description);
+
+            if (post.fileUrl) {
+                const image = document.createElement('img');
+                image.src = `https://nodejs-rwqk.onrender.com${post.fileUrl}`;
+                image.alt = 'Post image';
+                postElement.appendChild(image);
+            }
+
+            if (currentUserEmail === 'zozo.toth.2022home@gmail.com') {
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'delete-button';
+                deleteButton.innerText = 'Delete';
+                deleteButton.onclick = () => deletePost(post.id);
+                postElement.appendChild(deleteButton);
+            }
+
+            postsContainer.appendChild(postElement);
+        });
+    } catch (error) {
+        showMessage('Failed to load posts.', false);
+    }
+}
+
+// Delete Post
+async function deletePost(postId) {
+    try {
+        const response = await fetch(`https://nodejs-rwqk.onrender.com/posts/${postId}`, {
+            method: 'DELETE',
+            headers: { 'x-user-email': currentUserEmail },
+        });
+
+        if (response.ok) {
+            showMessage('Post deleted successfully!', true);
+            loadPosts();
+        } else {
+            const result = await response.json();
+            showMessage(result.error, false);
+        }
+    } catch (error) {
+        showMessage('Failed to delete post.', false);
+    }
+}
+
+// File Preview
+function previewFile() {
+    const file = document.getElementById('post-file').files[0];
+    const filePreview = document.getElementById('file-preview');
+    const reader = new FileReader();
+
+    reader.onload = function (e) {
+        filePreview.style.display = 'block';
+        filePreview.src = e.target.result;
+    };
+
+    if (file) {
+        reader.readAsDataURL(file);
+    }
+}
