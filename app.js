@@ -15,7 +15,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Configure multer for file uploads
 const upload = multer({
-    dest: 'uploads/',
+    dest: 'uploads/', // Default destination folder
     limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB limit
 });
 
@@ -43,10 +43,10 @@ app.post('/login', (req, res) => {
     res.json({ username: user.username, email: user.email });
 });
 
-// Create a new post
+// Create a new post with file upload
 app.post('/posts', upload.single('file'), (req, res) => {
     const { description } = req.body;
-    const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    const fileUrl = req.file ? `/uploads/${req.file.filename}` : null; // Save file URL for later
     const postId = posts.length + 1;
 
     posts.push({
