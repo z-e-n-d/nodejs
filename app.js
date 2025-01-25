@@ -2,21 +2,22 @@ const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const cors = require('cors');  // Add CORS to allow cross-origin requests
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 10000;  // Use process.env.PORT for dynamic port assignment
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cors());  // Enable CORS for all origins (you can customize this)
 
-// Serve uploaded files statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));  // Serve static files
 
 // Configure multer for file uploads
 const upload = multer({
-    dest: 'uploads/', // Default destination folder
-    limits: { fileSize: 1000 * 1024 * 1024 }, // 10 MB limit
+    dest: 'uploads/',  // Set the destination for uploaded files
+    limits: { fileSize: 10 * 1024 * 1024 },  // 10 MB file size limit
 });
 
 // Temporary storage for posts and users
@@ -43,10 +44,10 @@ app.post('/login', (req, res) => {
     res.json({ username: user.username, email: user.email });
 });
 
-// Create a new post with file upload
+// Create a new post (with file upload)
 app.post('/posts', upload.single('file'), (req, res) => {
     const { description } = req.body;
-    const fileUrl = req.file ? `/uploads/${req.file.filename}` : null; // Save file URL for later
+    const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
     const postId = posts.length + 1;
 
     posts.push({
