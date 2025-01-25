@@ -91,8 +91,8 @@ app.post("/create-posts", upload.single("file"), (req, res) => {
   res.status(201).json(newPost);
 });
 
-// Get all posts route
-app.get("/posts", (req, res) => {
+// Get all posts route (updated route for '/get-posts')
+app.get("/get-posts", (req, res) => {
   res.json(posts);
 });
 
