@@ -2,15 +2,22 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const cors = require("cors");
+const fs = require("fs");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// Ensure the 'uploads' directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true }); // Create uploads folder if not exists
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Save to 'uploads' directory
+    cb(null, uploadDir); // Save to 'uploads' directory
   },
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
@@ -85,7 +92,7 @@ app.post("/create-posts", upload.single("file"), (req, res) => {
 });
 
 // Get all posts route
-app.get("/get-posts", (req, res) => {
+app.get("/posts", (req, res) => {
   res.json(posts);
 });
 
