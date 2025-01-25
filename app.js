@@ -4,17 +4,10 @@ const path = require("path");
 const cors = require("cors");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static("uploads"));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// In-memory data storage
-let posts = [];
-
-// Multer setup for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "uploads/");
@@ -25,8 +18,8 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ["image/jpeg", "image/png", "video/mp4"];
-  if (allowedTypes.includes(file.mimetype)) {
+  console.log("Uploaded file:", file); // Log file details for debugging
+  if (file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/")) {
     cb(null, true);
   } else {
     cb(new Error("Invalid file type. Only images and videos are allowed."));
@@ -35,41 +28,23 @@ const fileFilter = (req, file, cb) => {
 
 const upload = multer({ storage, fileFilter });
 
-// Login endpoint
-app.post("/login", (req, res) => {
-  const { email, password } = req.body;
-  if (email === "post.req@gmail.com" && password === "1234") {
-    return res.status(200).json({ message: "Login successful!" });
-  }
-  return res.status(401).json({ message: "Invalid credentials!" });
-});
+let posts = [];
 
-// Create a post endpoint
 app.post("/posts", upload.single("file"), (req, res) => {
-  const { author, description } = req.body;
-
   if (!req.file) {
-    return res.status(400).json({ message: "File upload required." });
+    return res.status(400).json({ error: "File upload failed." });
   }
-
-  const fileUrl = `${req.protocol}://${req.get("host")}/${req.file.filename}`;
-  const newPost = { id: posts.length + 1, author, description, fileUrl };
+  const { description, author } = req.body;
+  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+  const newPost = { id: Date.now(), description, author, fileUrl };
   posts.push(newPost);
-
-  return res.status(201).json(newPost);
+  res.status(201).json(newPost);
 });
 
-// Get all posts endpoint
 app.get("/posts", (req, res) => {
-  res.status(200).json(posts);
+  res.json(posts);
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.message);
-  res.status(500).json({ message: err.message });
-});
-
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+app.listen(3000, () => {
+  console.log("Server is running on http://localhost:3000");
 });
