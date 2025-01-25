@@ -2,22 +2,23 @@ const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const cors = require('cors');  // Add CORS to allow cross-origin requests
+const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 10000;  // Use process.env.PORT for dynamic port assignment
+const PORT = process.env.PORT || 10000;
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());  // Enable CORS for all origins (you can customize this)
+app.use(cors());
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));  // Serve static files
+// Serve static files from the 'uploads' directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Configure multer for file uploads
 const upload = multer({
-    dest: 'uploads/',  // Set the destination for uploaded files
-    limits: { fileSize: 10 * 1024 * 1024 },  // 10 MB file size limit
+    dest: 'uploads/',  // Set the destination folder for uploaded files
+    limits: { fileSize: 1024 * 1024 * 1024 },  // 1 GB file size limit
 });
 
 // Temporary storage for posts and users
@@ -67,8 +68,9 @@ app.get('/posts', (req, res) => {
 // Delete a post
 app.delete('/posts/:id', (req, res) => {
     const postId = parseInt(req.params.id, 10);
-    const email = req.headers['x-user-email'];
+    const email = req.headers['x-user-email']; // Ensure the email is passed in the header for authorization
 
+    // Check if the email matches the admin's email for deletion permission
     if (email !== 'zozo.toth.2022home@gmail.com') {
         return res.status(403).json({ error: 'Permission denied.' });
     }
