@@ -1,62 +1,59 @@
 const express = require("express");
-const multer = require("multer");
-const path = require("path");
-const cors = require("cors");
-
+const bcrypt = require("bcrypt");
 const app = express();
 
-// Enable CORS to allow frontend access
-app.use(cors());
+// Middleware to parse incoming JSON requests
 app.use(express.json());
 
-// Serve uploaded files statically
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+let users = []; // This is where we'll store users temporarily (in-memory)
 
-// Multer storage configuration for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Define the folder to store uploaded files
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`); // Use a timestamp to ensure unique filenames
-  },
-});
+// Registration route
+app.post("/register", async (req, res) => {
+  const { email, password } = req.body;
 
-// File filter to allow only images and videos
-const fileFilter = (req, file, cb) => {
-  console.log("Uploaded file:", file); // Log file details for debugging
-  if (file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/")) {
-    cb(null, true);
-  } else {
-    cb(new Error("Invalid file type. Only images and videos are allowed."));
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required." });
   }
-};
 
-// Initialize multer with storage and file filter
-const upload = multer({ storage, fileFilter });
-
-let posts = [];
-
-// Endpoint to handle creating a post
-app.post("/posts", upload.single("file"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "File upload failed." });
+  // Check if user already exists
+  const existingUser = users.find(user => user.email === email);
+  if (existingUser) {
+    return res.status(400).json({ error: "User already exists." });
   }
-  
-  const { description, author } = req.body;  // Retrieve description and author from request body
-  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;  // Build URL to access the file
-  const newPost = { id: Date.now(), description, author, fileUrl };
-  posts.push(newPost);  // Add the new post to the posts array
-  res.status(201).json(newPost);  // Send back the created post
+
+  // Hash password before saving
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const newUser = { email, password: hashedPassword };
+  users.push(newUser);  // Store the user (in-memory for now)
+
+  res.status(201).json({ message: "User registered successfully", user: newUser });
 });
 
-// Endpoint to get all posts
-app.get("/posts", (req, res) => {
-  res.json(posts);  // Send back the list of posts
+// Login route
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required." });
+  }
+
+  // Find the user
+  const user = users.find(user => user.email === email);
+  if (!user) {
+    return res.status(400).json({ error: "Invalid credentials." });
+  }
+
+  // Compare the password with the stored hashed password
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) {
+    return res.status(400).json({ error: "Invalid credentials." });
+  }
+
+  res.status(200).json({ message: "Login successful", user });
 });
 
-// Start the server on the dynamic port provided by Render
-const port = process.env.PORT || 10000;  // Use the port from environment or default to 3000
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+// Start the server
+app.listen(3000, () => {
+  console.log("Server is running on http://localhost:3000");
 });
