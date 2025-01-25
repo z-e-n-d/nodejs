@@ -1,104 +1,96 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const path = require('path');
+const multer = require('multer');
 const fs = require('fs');
-const fileUpload = require('express-fileupload');  // Still using express-fileupload for file uploads
+const path = require('path');
 
 const app = express();
-const port = 5000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(bodyParser.json());
-app.use(cors());
-app.use(fileUpload());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Ensure the upload directory exists
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-}
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Mock database for users, posts, and files
-const users = [];
+// Configure multer for file uploads
+const upload = multer({
+    dest: 'uploads/',
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB limit
+});
+
+// Temporary storage for posts and users
 const posts = [];
+const users = [];
 
-// Register endpoint
+// Register route
 app.post('/register', (req, res) => {
     const { username, email, password } = req.body;
-    const existingUser = users.find(user => user.email === email);
-
-    if (existingUser) {
-        return res.status(400).json({ error: 'User already exists!' });
+    if (users.find(user => user.email === email)) {
+        return res.status(400).json({ error: 'Email already registered.' });
     }
-
     users.push({ username, email, password });
-    res.status(201).json({ message: 'User registered successfully!' });
+    res.status(201).json({ message: 'User registered successfully.' });
 });
 
-// Login endpoint
+// Login route
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
-    const user = users.find(user => user.email === email && user.password === password);
-
+    const user = users.find(u => u.email === email && u.password === password);
     if (!user) {
-        return res.status(400).json({ error: 'Invalid credentials!' });
+        return res.status(400).json({ error: 'Invalid email or password.' });
     }
-
-    res.status(200).json({ username: user.username });
+    res.json({ username: user.username, email: user.email });
 });
 
-// Upload post endpoint (handles post submission with file upload)
-app.post('/upload-post', (req, res) => {
-    const { author, description } = req.body;
-    let fileName = '';
-    let fileData = null;
+// Create a new post
+app.post('/posts', upload.single('file'), (req, res) => {
+    const { description } = req.body;
+    const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    const postId = posts.length + 1;
 
-    if (!author || !description) {
-        return res.status(400).json({ error: 'Missing author or description.' });
+    posts.push({
+        id: postId,
+        description,
+        fileUrl,
+    });
+
+    res.status(201).json({ message: 'Post created successfully.' });
+});
+
+// Get all posts
+app.get('/posts', (req, res) => {
+    res.json(posts);
+});
+
+// Delete a post
+app.delete('/posts/:id', (req, res) => {
+    const postId = parseInt(req.params.id, 10);
+    const email = req.headers['x-user-email'];
+
+    if (email !== 'zozo.toth.2022home@gmail.com') {
+        return res.status(403).json({ error: 'Permission denied.' });
     }
 
-    // Check if file is provided
-    if (req.files && req.files.file) {
-        const file = req.files.file;
-        fileName = file.name;
-        const saveTo = path.join(uploadDir, fileName);
+    const postIndex = posts.findIndex(post => post.id === postId);
+    if (postIndex === -1) {
+        return res.status(404).json({ error: 'Post not found.' });
+    }
 
-        // Save the file to the server
-        file.mv(saveTo, (err) => {
-            if (err) {
-                return res.status(500).json({ error: 'File upload failed.' });
-            }
-
-            // Save post to the mock database
-            posts.push({
-                author,
-                description,
-                fileName,
-                fileData: {
-                    mimetype: file.mimetype,
-                    saveTo
-                }
-            });
-
-            res.status(200).json({ success: true, message: 'Post uploaded successfully!' });
+    // Delete the file if it exists
+    const post = posts[postIndex];
+    if (post.fileUrl) {
+        const filePath = path.join(__dirname, post.fileUrl);
+        fs.unlink(filePath, err => {
+            if (err) console.error('Failed to delete file:', err);
         });
-    } else {
-        return res.status(400).json({ error: 'No file uploaded.' });
     }
+
+    posts.splice(postIndex, 1);
+    res.json({ message: 'Post deleted successfully.' });
 });
 
-// Get all posts for the feed
-app.get('/feed', (req, res) => {
-    res.status(200).json({ posts });
-});
-
-// Keep server awake (ping endpoint)
-app.get('/ping', (req, res) => {
-    res.status(200).send('Server is awake');
-});
-
-// Start server
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+// Start the server
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
