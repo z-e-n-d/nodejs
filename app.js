@@ -15,10 +15,10 @@ app.use(cors());
 // Serve static files from the 'uploads' directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Configure multer for file uploads
+// Configure multer for file uploads (supports both images and videos)
 const upload = multer({
     dest: 'uploads/',  // Set the destination folder for uploaded files
-    limits: { fileSize: 10 * 1024 * 1024 },  // 10 MB file size limit
+    limits: { fileSize: 1024 * 1024 * 1024 },  // 50 MB file size limit
 });
 
 // Temporary storage for posts and users
@@ -54,7 +54,7 @@ app.post('/posts', upload.single('file'), (req, res) => {
     posts.push({
         id: postId,
         description,
-        fileUrl,
+        fileUrl,  // Store the URL of the uploaded file
     });
 
     res.status(201).json({ message: 'Post created successfully.' });
