@@ -56,7 +56,7 @@ app.get("/posts", (req, res) => {
 });
 
 // Start the server on the dynamic port provided by Render
-const port = process.env.PORT || 3000;  // Use the port from environment or default to 3000
+const port = process.env.PORT || 10000;  // Use the port from environment or default to 3000
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
