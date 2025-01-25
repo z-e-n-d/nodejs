@@ -85,7 +85,7 @@ app.post("/create-posts", upload.single("file"), (req, res) => {
 });
 
 // Get all posts route
-app.get("/posts", (req, res) => {
+app.get("/get-posts", (req, res) => {
   res.json(posts);
 });
 
