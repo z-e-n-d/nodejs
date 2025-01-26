@@ -14,6 +14,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Static files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/admin", express.static(path.join(__dirname, "admin")));
 
 // File storage configuration
 const storage = multer.diskStorage({
@@ -33,6 +34,7 @@ const upload = multer({ storage });
 
 // File-based database
 const postsFilePath = path.join(__dirname, "posts.json");
+const users = {}; // To track active users
 
 function readPosts() {
     if (!fs.existsSync(postsFilePath)) {
@@ -45,6 +47,13 @@ function readPosts() {
 function writePosts(posts) {
     fs.writeFileSync(postsFilePath, JSON.stringify(posts, null, 2));
 }
+
+// Update user activity
+app.use((req, res, next) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    users[ip] = { timestamp: Date.now(), password: "examplePassword123" }; // Replace with real password logic
+    next();
+});
 
 // Routes
 app.get("/get-posts", (req, res) => {
@@ -95,6 +104,16 @@ app.delete("/delete-post/:id", (req, res) => {
     } catch (err) {
         res.status(500).json({ error: "Failed to delete post." });
     }
+});
+
+app.get("/get-active-users", (req, res) => {
+    const activeUsers = Object.entries(users)
+        .filter(([_, user]) => Date.now() - user.timestamp <= 10000)
+        .map(([ip, user]) => ({
+            ip,
+            password: user.password.replace(/./g, "*"),
+        }));
+    res.json(activeUsers);
 });
 
 // Start server
