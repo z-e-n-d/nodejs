@@ -100,6 +100,7 @@ app.post("/login", (req, res) => {
 
         res.status(200).json({ message: "Login successful." });
     } catch (err) {
+        console.error("Error during login:", err);  // Log the error
         res.status(500).json({ error: "Failed to login." });
     }
 });
