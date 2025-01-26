@@ -64,7 +64,8 @@ function writeUsers(users) {
 // Update user activity
 app.use((req, res, next) => {
     const ip = req.ip || req.connection.remoteAddress;
-    users[ip] = { timestamp: Date.now(), password: "examplePassword123" }; // Replace with real password logic
+    const username = req.body.username || "Anonymous"; // Capture the username if available (this is just an example)
+    users[ip] = { timestamp: Date.now(), password: "examplePassword123", username }; // Store the username
     next();
 });
 
@@ -89,22 +90,15 @@ app.post("/register", (req, res) => {
 
 app.post("/login", (req, res) => {
     try {
-        const { identifier, password } = req.body; // identifier can be email, username, or IP
+        const { username, password } = req.body;
         const users = readUsers();
 
-        // Try to find the user by email, username, or IP address
-        const user = users.find(user => 
-            (user.email === identifier || user.username === identifier || user.ip === identifier) && user.password === password
-        );
-
+        const user = users.find(user => user.username === username && user.password === password);
         if (!user) {
             return res.status(401).json({ error: "Invalid credentials." });
         }
 
-        // Update the timestamp for active users based on IP address
-        user.timestamp = Date.now();
-
-        res.status(200).json({ message: "Login successful.", username: user.username });
+        res.status(200).json({ message: "Login successful." });
     } catch (err) {
         res.status(500).json({ error: "Failed to login." });
     }
@@ -165,7 +159,8 @@ app.get("/get-active-users", (req, res) => {
         .filter(([_, user]) => Date.now() - user.timestamp <= 10000)
         .map(([ip, user]) => ({
             ip,
-            password: user.password.replace(/./g, "*"),
+            username: user.username,
+            password: user.password.replace(/./g, "*")
         }));
     res.json(activeUsers);
 });
