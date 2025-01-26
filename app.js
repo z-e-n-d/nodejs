@@ -1,20 +1,39 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
+
+// Connect to MongoDB
+mongoose.connect('mongodb://localhost:27017/socialMedia', { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('MongoDB connected'))
+  .catch((error) => console.log('MongoDB connection error:', error));
+
+// Define Post and User schemas
+const postSchema = new mongoose.Schema({
+  content: String,
+  author: String,
+  email: String,
+  fileUrl: String,
+  videoUrl: String,
+});
+
+const userSchema = new mongoose.Schema({
+  username: String,
+  email: String,
+  password: String,
+});
+
+const Post = mongoose.model('Post', postSchema);
+const User = mongoose.model('User', userSchema);
 
 const app = express();
-
 app.use(cors());
 app.use(bodyParser.json());
 
-// In-memory storage for posts and users
-let posts = [];
-let users = [];
-
 // Endpoint to get posts
-app.get('/get-posts', (req, res) => {
+app.get('/get-posts', async (req, res) => {
     try {
+        const posts = await Post.find();
         res.json(posts);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch posts' });
@@ -22,20 +41,19 @@ app.get('/get-posts', (req, res) => {
 });
 
 // Endpoint to create a new post
-app.post('/create-posts', (req, res) => {
+app.post('/create-posts', async (req, res) => {
     const { content, author, email, fileUrl, videoUrl } = req.body;
 
     try {
-        const newPost = {
-            id: posts.length + 1,  // Simple in-memory ID generation
+        const newPost = new Post({
             content,
             author,
             email,
             fileUrl,
             videoUrl,
-        };
+        });
 
-        posts.push(newPost);
+        await newPost.save();
         res.status(200).json({ message: 'Post created successfully' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to create post' });
@@ -43,11 +61,11 @@ app.post('/create-posts', (req, res) => {
 });
 
 // Endpoint to delete a post by ID
-app.delete('/delete-post/:id', (req, res) => {
-    const postId = parseInt(req.params.id);
+app.delete('/delete-post/:id', async (req, res) => {
+    const postId = req.params.id;
 
     try {
-        posts = posts.filter(post => post.id !== postId);
+        await Post.findByIdAndDelete(postId);
         res.status(200).json({ message: 'Post deleted successfully' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to delete post' });
@@ -55,11 +73,11 @@ app.delete('/delete-post/:id', (req, res) => {
 });
 
 // Endpoint to delete all posts (admin only)
-app.post('/delete-all-posts', (req, res) => {
+app.post('/delete-all-posts', async (req, res) => {
     const { username, code } = req.body;
     if (username === 'zend' && code === '0926') {
         try {
-            posts = [];  // Clear all posts
+            await Post.deleteMany({});
             res.status(200).json({ message: 'All posts deleted successfully' });
         } catch (error) {
             res.status(500).json({ error: 'Failed to delete all posts' });
@@ -77,13 +95,13 @@ app.post('/register', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        const newUser = {
+        const newUser = new User({
             username,
             email,
             password: hashedPassword,
-        };
+        });
 
-        users.push(newUser);
+        await newUser.save();
         res.status(200).json({ message: 'User registered successfully' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to register user' });
@@ -95,7 +113,7 @@ app.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        const user = users.find(u => u.email === email);
+        const user = await User.findOne({ email });
         if (!user) {
             return res.status(400).json({ error: 'Invalid email or password' });
         }
