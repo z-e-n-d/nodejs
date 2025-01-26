@@ -34,6 +34,7 @@ const upload = multer({ storage });
 
 // File-based database
 const postsFilePath = path.join(__dirname, "posts.json");
+const usersFilePath = path.join(__dirname, "users.json");
 const users = {}; // To track active users
 
 function readPosts() {
@@ -48,6 +49,18 @@ function writePosts(posts) {
     fs.writeFileSync(postsFilePath, JSON.stringify(posts, null, 2));
 }
 
+function readUsers() {
+    if (!fs.existsSync(usersFilePath)) {
+        return [];
+    }
+    const data = fs.readFileSync(usersFilePath, "utf8");
+    return JSON.parse(data);
+}
+
+function writeUsers(users) {
+    fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
+}
+
 // Update user activity
 app.use((req, res, next) => {
     const ip = req.ip || req.connection.remoteAddress;
@@ -56,6 +69,40 @@ app.use((req, res, next) => {
 });
 
 // Routes
+app.post("/register", (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const users = readUsers();
+
+        if (users.find(user => user.username === username)) {
+            return res.status(400).json({ error: "Username already exists." });
+        }
+
+        users.push({ username, password });
+        writeUsers(users);
+
+        res.status(201).json({ message: "User registered successfully." });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to register user." });
+    }
+});
+
+app.post("/login", (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const users = readUsers();
+
+        const user = users.find(user => user.username === username && user.password === password);
+        if (!user) {
+            return res.status(401).json({ error: "Invalid credentials." });
+        }
+
+        res.status(200).json({ message: "Login successful." });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to login." });
+    }
+});
+
 app.get("/get-posts", (req, res) => {
     try {
         const posts = readPosts();
