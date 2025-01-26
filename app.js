@@ -1,137 +1,149 @@
-const express = require("express");
-const multer = require("multer");
-const path = require("path");
-const cors = require("cors");
-const fs = require("fs");
+const express = require('express');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
 
 const app = express();
+const port = process.env.PORT || 5000;
+
+// Middleware
 app.use(cors());
-app.use(express.json());
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(bodyParser.json());
 
-// Ensure the 'uploads' directory exists
-const uploadDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true }); // Create uploads folder if not exists
-}
+// Connect to MongoDB
+mongoose.connect('your-mongo-db-connection-string', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log('MongoDB connected'))
+.catch((err) => console.log(err));
 
+// Post Schema
+const postSchema = new mongoose.Schema({
+  author: String,
+  description: String,
+  fileUrl: String,
+  videoUrl: String,
+});
+
+const Post = mongoose.model('Post', postSchema);
+
+// Setup for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir); // Save to 'uploads' directory
+    cb(null, 'uploads/');
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    cb(null, Date.now() + path.extname(file.originalname));
   },
 });
 
-const fileFilter = (req, file, cb) => {
-  console.log("Uploaded file:", file); // Log file details for debugging
-  if (file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/")) {
-    cb(null, true);
-  } else {
-    cb(new Error("Invalid file type. Only images and videos are allowed."));
+const upload = multer({ storage: storage });
+
+// Routes
+
+// Get all posts
+app.get('/get-posts', async (req, res) => {
+  try {
+    const posts = await Post.find();
+    res.status(200).json(posts);
+  } catch (error) {
+    res.status(500).send({ error: 'Failed to retrieve posts.' });
   }
-};
-
-const upload = multer({ storage, fileFilter });
-
-let posts = [];
-let users = []; // Store users for simplicity, should be in DB in real-world use
-
-// Registration route (without password hashing)
-app.post("/register", (req, res) => {
-  const { username, email, password } = req.body;
-  if (!username || !email || !password) {
-    return res.status(400).json({ error: "Missing fields" });
-  }
-
-  // Just store username and email, no hashing
-  const newUser = { id: Date.now(), username, email, password };
-  users.push(newUser);
-  res.status(201).json(newUser);
 });
 
-app.post("/login", (req, res) => {
-  const { email, password } = req.body;
-  const user = users.find((u) => u.email === email && u.password === password);
+// Create post
+app.post('/create-posts', upload.single('file'), async (req, res) => {
+  const { content, author, email } = req.body;
+  let fileUrl = '';
+  let videoUrl = '';
 
-  if (!user) {
-    return res.status(400).json({ error: "Invalid email or password" });
-  }
-
-  // Send only the username and success message
-  res.status(200).json({
-    message: "Logged in successfully",
-    username: user.username, // Include only the username
-  });
-});
-
-// Create post route for '/create-posts'
-app.post("/create-posts", upload.single("file"), (req, res) => {
-  // Check if file is uploaded
-  if (!req.file) {
-    return res.status(400).json({ error: "File upload failed." });
-  }
-
-  // Extract description and author from the request body
-  const { description, author } = req.body;
-
-  // Build the file URL (assuming you're serving static files from the "uploads" folder)
-  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
-
-  // Create a new post object
-  const newPost = {
-    id: Date.now(), // Use timestamp as a unique ID for the post
-    description,
-    author,
-    fileUrl, // URL of the uploaded file (image or video)
-  };
-
-  // Save the new post to the posts array
-  posts.push(newPost);
-
-  // Return the new post as a response
-  res.status(201).json(newPost);
-});
-
-// Get all posts route
-app.get("/get-posts", (req, res) => {
-  res.json(posts);
-});
-
-app.delete("/delete-post", (req, res) => {
-  const { postId, email } = req.body;
-
-  // Validate request data
-  if (!postId || !email) {
-    return res.status(400).json({ error: "Post ID and email are required." });
-  }
-
-  // Check if the email is allowed to delete posts
-  if (email !== "zozo.toth.2022home@gmail.com") {
-    return res.status(403).json({ error: "You are not authorized to delete posts." });
-  }
-
-  // Find the post by ID
-  const postIndex = posts.findIndex((post) => post.id === postId);
-  if (postIndex === -1) {
-    return res.status(404).json({ error: "Post not found." });
-  }
-
-  // Delete the post
-  const deletedPost = posts.splice(postIndex, 1)[0];
-
-  // Delete the associated file
-  const filePath = path.join(uploadDir, path.basename(deletedPost.fileUrl));
-  fs.unlink(filePath, (err) => {
-    if (err) {
-      console.error(`Error deleting file: ${filePath}`, err);
+  if (req.file) {
+    if (req.file.mimetype.startsWith('image')) {
+      fileUrl = `/uploads/${req.file.filename}`;
+    } else if (req.file.mimetype.startsWith('video')) {
+      videoUrl = `/uploads/${req.file.filename}`;
     }
+  }
+
+  const newPost = new Post({
+    author,
+    description: content,
+    fileUrl,
+    videoUrl,
   });
 
-  res.status(200).json({ message: "Post deleted successfully.", deletedPost });
+  try {
+    await newPost.save();
+    res.status(201).json(newPost);
+  } catch (error) {
+    res.status(500).send({ error: 'Failed to create post.' });
+  }
 });
 
-app.listen(3000, () => {
-  console.log("Server is running on http://localhost:3000");
+// Delete post by ID
+app.delete('/delete-post/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const post = await Post.findByIdAndDelete(id);
+    if (!post) {
+      return res.status(404).send({ error: 'Post not found.' });
+    }
+    res.status(200).send({ message: 'Post deleted successfully.' });
+  } catch (error) {
+    res.status(500).send({ error: 'Error deleting post.' });
+  }
+});
+
+// Admin delete all posts (requires specific username and code)
+app.delete('/delete-all-posts', (req, res) => {
+  const { username, code } = req.body;
+  if (username === 'z-e-n-d' && code === '0926') {
+    Post.deleteMany({}, (err) => {
+      if (err) {
+        return res.status(500).send({ error: 'Failed to delete posts.' });
+      }
+      res.status(200).send({ message: 'All posts deleted.' });
+    });
+  } else {
+    res.status(403).send({ error: 'Unauthorized' });
+  }
+});
+
+// Login Route
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    // Here you would check the username and password against your DB
+    // For now, we're simulating a successful login.
+    if (username && password) {
+      res.status(200).json({ username });
+    } else {
+      res.status(400).send({ error: 'Invalid credentials.' });
+    }
+  } catch (error) {
+    res.status(500).send({ error: 'Login failed.' });
+  }
+});
+
+// Register Route
+app.post('/register', async (req, res) => {
+  const { username, email, password } = req.body;
+  // Here, you would register the user (save to DB)
+  try {
+    // Simulate successful registration
+    res.status(201).send({ message: 'User registered successfully!' });
+  } catch (error) {
+    res.status(500).send({ error: 'Registration failed.' });
+  }
+});
+
+// Serve static files (uploads)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Start server
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
