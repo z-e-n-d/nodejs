@@ -89,15 +89,22 @@ app.post("/register", (req, res) => {
 
 app.post("/login", (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { identifier, password } = req.body; // identifier can be email, username, or IP
         const users = readUsers();
 
-        const user = users.find(user => user.username === username && user.password === password);
+        // Try to find the user by email, username, or IP address
+        const user = users.find(user => 
+            (user.email === identifier || user.username === identifier || user.ip === identifier) && user.password === password
+        );
+
         if (!user) {
             return res.status(401).json({ error: "Invalid credentials." });
         }
 
-        res.status(200).json({ message: "Login successful." });
+        // Update the timestamp for active users based on IP address
+        user.timestamp = Date.now();
+
+        res.status(200).json({ message: "Login successful.", username: user.username });
     } catch (err) {
         res.status(500).json({ error: "Failed to login." });
     }
