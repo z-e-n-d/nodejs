@@ -99,26 +99,29 @@ app.get("/get-posts", (req, res) => {
   res.json(posts);
 });
 
-// Delete post route (restricted to a specific email)
-app.post("/delete-post", (req, res) => {
+app.delete("/delete-post", (req, res) => {
   const { postId, email } = req.body;
+
+  // Validate request data
+  if (!postId || !email) {
+    return res.status(400).json({ error: "Post ID and email are required." });
+  }
 
   // Check if the email is allowed to delete posts
   if (email !== "zozo.toth.2022home@gmail.com") {
     return res.status(403).json({ error: "You are not authorized to delete posts." });
   }
 
-  // Find the index of the post with the given ID
+  // Find the post by ID
   const postIndex = posts.findIndex((post) => post.id === postId);
-
   if (postIndex === -1) {
     return res.status(404).json({ error: "Post not found." });
   }
 
-  // Remove the post from the posts array
+  // Delete the post
   const deletedPost = posts.splice(postIndex, 1)[0];
 
-  // Optionally, delete the uploaded file from the 'uploads' directory
+  // Delete the associated file
   const filePath = path.join(uploadDir, path.basename(deletedPost.fileUrl));
   fs.unlink(filePath, (err) => {
     if (err) {
@@ -128,6 +131,7 @@ app.post("/delete-post", (req, res) => {
 
   res.status(200).json({ message: "Post deleted successfully.", deletedPost });
 });
+
 
 app.listen(3000, () => {
   console.log("Server is running on http://localhost:3000");
