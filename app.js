@@ -51,7 +51,6 @@ app.post("/register", (req, res) => {
   res.status(201).json(newUser);
 });
 
-// Simple login (without bcrypt for simplicity)
 app.post("/login", (req, res) => {
   const { email, password } = req.body;
   const user = users.find((u) => u.email === email && u.password === password);
@@ -60,7 +59,11 @@ app.post("/login", (req, res) => {
     return res.status(400).json({ error: "Invalid email or password" });
   }
 
-  res.status(200).json({ message: "Logged in successfully", user });
+  // Send only the username and success message
+  res.status(200).json({
+    message: "Logged in successfully",
+    username: user.username, // Include only the username
+  });
 });
 
 // Create post route for '/create-posts'
