@@ -14,7 +14,6 @@ app.use(express.urlencoded({ extended: true }));
 
 // Static files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-app.use("/admin", express.static(path.join(__dirname, "admin")));
 
 // File storage configuration
 const storage = multer.diskStorage({
@@ -35,90 +34,80 @@ const upload = multer({ storage });
 // File-based database
 const postsFilePath = path.join(__dirname, "posts.json");
 const usersFilePath = path.join(__dirname, "users.json");
-const users = {}; // To track active users
 
-function readPosts() {
-    if (!fs.existsSync(postsFilePath)) {
+function readJSON(filePath) {
+    if (!fs.existsSync(filePath)) {
         return [];
     }
-    const data = fs.readFileSync(postsFilePath, "utf8");
+    const data = fs.readFileSync(filePath, "utf8");
     return JSON.parse(data);
 }
 
-function writePosts(posts) {
-    fs.writeFileSync(postsFilePath, JSON.stringify(posts, null, 2));
+function writeJSON(filePath, data) {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
-
-function readUsers() {
-    if (!fs.existsSync(usersFilePath)) {
-        return [];
-    }
-    const data = fs.readFileSync(usersFilePath, "utf8");
-    return JSON.parse(data);
-}
-
-function writeUsers(users) {
-    fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
-}
-
-// Update user activity
-app.use((req, res, next) => {
-    const ip = req.ip || req.connection.remoteAddress;
-    const username = req.body.username || "Anonymous"; // Capture the username if available (this is just an example)
-    users[ip] = { timestamp: Date.now(), password: "examplePassword123", username }; // Store the username
-    next();
-});
 
 // Routes
+
+// Register a new user
 app.post("/register", (req, res) => {
     try {
-        const { username, password } = req.body;
-        const users = readUsers();
+        const { username, email, password } = req.body;
+        const users = readJSON(usersFilePath);
 
-        if (users.find(user => user.username === username)) {
-            return res.status(400).json({ error: "Username already exists." });
+        // Check for existing user
+        if (users.some(user => user.username === username || user.email === email)) {
+            return res.status(400).json({ error: "Username or email already exists." });
         }
 
-        users.push({ username, password });
-        writeUsers(users);
+        // Add new user
+        users.push({ username, email, password });
+        writeJSON(usersFilePath, users);
 
         res.status(201).json({ message: "User registered successfully." });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: "Failed to register user." });
     }
 });
 
+// Login a user
 app.post("/login", (req, res) => {
     try {
-        const { username, password } = req.body;
-        const users = readUsers();
+        const { email, password } = req.body;
+        const users = readJSON(usersFilePath);
 
-        const user = users.find(user => user.username === username && user.password === password);
+        // Authenticate user
+        const user = users.find(user => user.email === email && user.password === password);
         if (!user) {
-            return res.status(401).json({ error: "Invalid credentials." });
+            return res.status(401).json({ error: "Invalid email or password." });
         }
 
-        res.status(200).json({ message: "Login successful." });
+        res.status(200).json({ message: "Login successful.", username: user.username });
     } catch (err) {
-        console.error("Error during login:", err);  // Log the error
+        console.error(err);
         res.status(500).json({ error: "Failed to login." });
     }
 });
 
+// Get all posts
 app.get("/get-posts", (req, res) => {
     try {
-        const posts = readPosts();
+        const posts = readJSON(postsFilePath);
         res.json(posts);
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: "Failed to fetch posts." });
     }
 });
 
+// Create a new post
 app.post("/create-posts", upload.single("file"), (req, res) => {
     try {
         const { content, author } = req.body;
         const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
+        // Create new post
         const newPost = {
             id: Date.now().toString(),
             content,
@@ -126,44 +115,37 @@ app.post("/create-posts", upload.single("file"), (req, res) => {
             fileUrl,
         };
 
-        const posts = readPosts();
+        const posts = readJSON(postsFilePath);
         posts.push(newPost);
-        writePosts(posts);
+        writeJSON(postsFilePath, posts);
 
         res.status(201).json({ message: "Post created successfully.", post: newPost });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: "Failed to create post." });
     }
 });
 
+// Delete a post
 app.delete("/delete-post/:id", (req, res) => {
     try {
         const { id } = req.params;
-        let posts = readPosts();
-        const postIndex = posts.findIndex(post => post.id === id);
+        let posts = readJSON(postsFilePath);
 
+        // Find and remove post
+        const postIndex = posts.findIndex(post => post.id === id);
         if (postIndex === -1) {
             return res.status(404).json({ error: "Post not found." });
         }
 
         posts.splice(postIndex, 1);
-        writePosts(posts);
+        writeJSON(postsFilePath, posts);
 
         res.json({ message: "Post deleted successfully." });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: "Failed to delete post." });
     }
-});
-
-app.get("/get-active-users", (req, res) => {
-    const activeUsers = Object.entries(users)
-        .filter(([_, user]) => Date.now() - user.timestamp <= 10000)
-        .map(([ip, user]) => ({
-            ip,
-            username: user.username,
-            password: user.password.replace(/./g, "*")
-        }));
-    res.json(activeUsers);
 });
 
 // Start server
