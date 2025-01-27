@@ -1,6 +1,5 @@
 const express = require("express");
-const fs = require("fs");
-const path = require("path");
+const axios = require("axios");
 const multer = require("multer");
 const cors = require("cors");
 
@@ -13,15 +12,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Static files
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", express.static("uploads"));
 
 // File storage configuration
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, "uploads");
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir);
-        }
+        const uploadDir = "uploads";
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
@@ -31,29 +27,37 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// File-based database
-const postsFilePath = path.join(__dirname, "posts.json");
-const usersFilePath = path.join(__dirname, "users.json");
+// W3Spaces URLs for users.json and posts.json
+const usersJsonUrl = "https://re-media.w3spaces.com/users.json";
+const postsJsonUrl = "https://re-media.w3spaces.com/posts.json";
 
-function readJSON(filePath) {
-    if (!fs.existsSync(filePath)) {
+// Helper functions to interact with W3Spaces
+
+async function readJSON(url) {
+    try {
+        const response = await axios.get(url);
+        return response.data;
+    } catch (error) {
+        console.error("Error reading JSON:", error);
         return [];
     }
-    const data = fs.readFileSync(filePath, "utf8");
-    return JSON.parse(data);
 }
 
-function writeJSON(filePath, data) {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+async function writeJSON(url, data) {
+    try {
+        await axios.put(url, data);
+    } catch (error) {
+        console.error("Error writing JSON:", error);
+    }
 }
 
 // Routes
 
 // Register a new user
-app.post("/register", (req, res) => {
+app.post("/register", async (req, res) => {
     try {
         const { username, email, password } = req.body;
-        const users = readJSON(usersFilePath);
+        const users = await readJSON(usersJsonUrl);
 
         // Check for existing user
         if (users.some(user => user.username === username || user.email === email)) {
@@ -62,7 +66,7 @@ app.post("/register", (req, res) => {
 
         // Add new user
         users.push({ username, email, password });
-        writeJSON(usersFilePath, users);
+        await writeJSON(usersJsonUrl, users);
 
         res.status(201).json({ message: "User registered successfully." });
     } catch (err) {
@@ -72,10 +76,10 @@ app.post("/register", (req, res) => {
 });
 
 // Login a user
-app.post("/login", (req, res) => {
+app.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        const users = readJSON(usersFilePath);
+        const users = await readJSON(usersJsonUrl);
 
         // Authenticate user
         const user = users.find(user => user.email === email && user.password === password);
@@ -91,9 +95,9 @@ app.post("/login", (req, res) => {
 });
 
 // Get all posts
-app.get("/get-posts", (req, res) => {
+app.get("/get-posts", async (req, res) => {
     try {
-        const posts = readJSON(postsFilePath);
+        const posts = await readJSON(postsJsonUrl);
         res.json(posts);
     } catch (err) {
         console.error(err);
@@ -102,7 +106,7 @@ app.get("/get-posts", (req, res) => {
 });
 
 // Create a new post
-app.post("/create-posts", upload.single("file"), (req, res) => {
+app.post("/create-posts", upload.single("file"), async (req, res) => {
     try {
         const { content, author } = req.body;
         const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
@@ -115,9 +119,9 @@ app.post("/create-posts", upload.single("file"), (req, res) => {
             fileUrl,
         };
 
-        const posts = readJSON(postsFilePath);
+        const posts = await readJSON(postsJsonUrl);
         posts.push(newPost);
-        writeJSON(postsFilePath, posts);
+        await writeJSON(postsJsonUrl, posts);
 
         res.status(201).json({ message: "Post created successfully.", post: newPost });
     } catch (err) {
@@ -127,10 +131,10 @@ app.post("/create-posts", upload.single("file"), (req, res) => {
 });
 
 // Delete a post
-app.delete("/delete-post/:id", (req, res) => {
+app.delete("/delete-post/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        let posts = readJSON(postsFilePath);
+        let posts = await readJSON(postsJsonUrl);
 
         // Find and remove post
         const postIndex = posts.findIndex(post => post.id === id);
@@ -139,7 +143,7 @@ app.delete("/delete-post/:id", (req, res) => {
         }
 
         posts.splice(postIndex, 1);
-        writeJSON(postsFilePath, posts);
+        await writeJSON(postsJsonUrl, posts);
 
         res.json({ message: "Post deleted successfully." });
     } catch (err) {
